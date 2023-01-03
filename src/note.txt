@@ -1,0 +1,28 @@
+--- root with only songs titled {artist} - {song_title} 
+
+f"{artist} - {song_title}"
+
+--- root with album_artist/album_name/song_title
+
+d"{album_artist}"/d"{album_name}"/f"{song_title}"
+
+--- root with album_artist - album_name/(optional)disk #/files
+
+d"{album_artist} - {album_name}"/d?"DISK {disc_number}"/f
+
+
+---
+
+dev process:
+    - read metadata from a single file [done]
+    - read metadata from all files in a directory [done]
+    - read metadata from all subdirectories in the current directory [done]
+    - copy all files from all subdirectories into ./songs/{file}
+    - copy all files into ./d"songs"/d"{album_name}"/f"{song_title}"
+    - copy all files into arg string
+    - create global log of all operations
+    - test that panics during the file indexing process will trigger a revert of all prior operations
+    - cut all files into arg string
+    - support file disambiguation flags (only_highest_quality, add_suffix)
+    - rewrite with jwalk & rayon for parallelism
+    
