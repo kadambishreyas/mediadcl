@@ -17,12 +17,12 @@ dev process:
     - read metadata from a single file [done]
     - read metadata from all files in a directory [done]
     - read metadata from all subdirectories in the current directory [done]
-    - copy all files from all subdirectories into ./songs/{file}
+    - create log of all copy operations needed from all subdirs [done]
+    - rewrite with jwalk & rayon for parallel log creation [done]
+    - execute fwd log operations, copying all subdirectories into ./songs/{file}
+    - test that panics during the file indexing process will trigger a revert of all prior operations
     - copy all files into ./d"songs"/d"{album_name}"/f"{song_title}"
     - copy all files into arg string
-    - create global log of all operations
-    - test that panics during the file indexing process will trigger a revert of all prior operations
     - cut all files into arg string
     - support file disambiguation flags (only_highest_quality, add_suffix)
-    - rewrite with jwalk & rayon for parallelism
     

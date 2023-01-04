@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 audiotags = "0.4.1"
 fs-err = "2.9.0"
+jwalk = "0.8.1"
 walkdir = "2.3.2"
