@@ -214,6 +214,7 @@ dependencies = [
  "audiotags",
  "fs-err",
  "jwalk",
+ "rayon",
  "walkdir",
 ]
 

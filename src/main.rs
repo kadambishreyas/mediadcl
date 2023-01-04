@@ -1,33 +1,27 @@
-use audiotags::{AudioTag, Tag};
+use audiotags::Tag;
 use fs_err as fs;
-use jwalk::{ WalkDir, DirEntry };
-use std::{env, io, path::Path, path::PathBuf};
+use jwalk::{DirEntry, WalkDir};
+use rayon::prelude::*;
+use std::{env, ffi::OsString, path::Path, path::PathBuf};
 
-#[allow(dead_code)]
-#[derive(Debug)]
-struct CopyOp {
-    from: PathBuf,
-    to: PathBuf,
+#[derive(Debug, PartialEq)]
+enum CopyStatus {
+    NotYet,
+    Executing,
+    Success,
+    Failure,
 }
 
-fn _copy_file_and_make_dirs(tag: Box<dyn AudioTag>, from: &Path, to: &Path) -> io::Result<()> {
-    // Make directories.
-    if let Some(p) = to.parent() {
-        fs::create_dir_all(p)?
-    }
+#[derive(Debug)]
+struct CopyOp {
+    src: PathBuf,
+    dest: PathBuf,
+    status: CopyStatus,
+}
 
-    // Perform copy.
-    let copy_result = fs::copy(from, to);
-    match copy_result {
-        Ok(_bytes_copied) => {
-            println!(
-                "{:?} - {:?} copied!",
-                tag.album_artist().unwrap_or("Unknown Artist"),
-                tag.title().unwrap_or("Unknown Title")
-            );
-            Ok(())
-        },
-        Err(e) => Err(e),
+impl CopyOp {
+    fn new(src: PathBuf, dest: PathBuf) -> CopyOp {
+        CopyOp { src, dest, status: CopyStatus::NotYet }
     }
 }
 
@@ -40,9 +34,10 @@ fn should_show(entry: &Result<DirEntry<((), ())>, jwalk::Error>, dest: &PathBuf)
 
 fn analyze_dir(op_log: &mut Vec<CopyOp>, current_dir: PathBuf, dest: PathBuf) {
     let walker_dest = dest.clone();
-    let walker = WalkDir::new(current_dir).process_read_dir(move |_depth, _path, _state, children| {
-        children.retain(|entry| should_show(entry, &walker_dest));
-    });
+    let walker =
+        WalkDir::new(current_dir).process_read_dir(move |_depth, _path, _state, children| {
+            children.retain(|entry| should_show(entry, &walker_dest));
+        });
     for entry in walker {
         // Try to copy file to dest if music file.
         let entry = entry.unwrap();
@@ -56,10 +51,50 @@ fn analyze_dir(op_log: &mut Vec<CopyOp>, current_dir: PathBuf, dest: PathBuf) {
             if let Ok(_tag) = tag {
                 let to = dest.join(entry.file_name());
                 println!("Queued copy from {:?} to {:?}", entry.path(), &to);
-                op_log.push(CopyOp { from: entry.path(), to });
+                op_log.push(CopyOp::new(entry.path(), to));
             }
         }
     }
+}
+
+fn can_write_new(path: &Path) -> bool {
+    let exists = path.try_exists().is_ok() && path.try_exists().unwrap();
+    let parent = path.parent().expect("Could not find parent.");
+    let may_create =
+        parent.metadata().is_ok() && !parent.metadata().unwrap().permissions().readonly();
+    !exists && may_create
+}
+
+fn copy_files(op_log: &mut Vec<CopyOp>) {
+    op_log.par_iter_mut().for_each(|op| {
+        op.status = CopyStatus::Executing;
+
+        // Make dest if it doesn't exist.
+        assert!(op.dest.file_name().is_some());
+        if let Some(p) = op.dest.parent() {
+            if can_write_new(p) {
+                println!("Creating directory {:?}.", p);
+                fs::create_dir_all(p).expect("Could not move file to desired location.");
+            }
+        }
+
+        // Ensure copy is possible & does not overwrite.
+        if !can_write_new(&op.dest) {
+            op.status = CopyStatus::Failure;
+        } else {
+            // Try to copy file.
+            match fs::copy(&op.src, &op.dest) {
+                Ok(_bytes_copied) => {
+                    println!("Copied {:?} to {:?}", &op.src, &op.dest);
+                    op.status = CopyStatus::Success;
+                },
+                Err(e) => {
+                    println!("Copying {:?} failed. {:?}", &op.src, e);
+                    op.status = CopyStatus::Failure;
+                },
+            }
+        }
+    });
 }
 
 fn main() {
@@ -69,9 +104,23 @@ fn main() {
         std::process::exit(1);
     });
 
-    // Iterate through current directory.
+    // Analyze new locations of all files to be moved.
     let songs_dir = current_dir.join("songs");
     let mut op_log: Vec<CopyOp> = vec![];
     analyze_dir(&mut op_log, current_dir, songs_dir);
-    println!("{:?}", &op_log);
+
+    // Copy files.
+    copy_files(&mut op_log);
+
+    // Status report.
+    let op_log: Vec<OsString> = op_log
+        .into_iter()
+        .filter(|op| op.status != CopyStatus::Success)
+        .map(|op| op.src.into_os_string())
+        .collect();
+    if op_log.is_empty() {
+        println!("All files copied!");
+    } else {
+        println!("List of uncopied files: {:?}", op_log);
+    }
 }

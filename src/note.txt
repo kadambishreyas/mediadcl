@@ -19,8 +19,8 @@ dev process:
     - read metadata from all subdirectories in the current directory [done]
     - create log of all copy operations needed from all subdirs [done]
     - rewrite with jwalk & rayon for parallel log creation [done]
-    - execute fwd log operations, copying all subdirectories into ./songs/{file}
-    - test that panics during the file indexing process will trigger a revert of all prior operations
+    - execute fwd log operations, copying all subdirectories into ./songs/{file} [done]
+    - test that panics during the file copying process will trigger a revert of all prior operations
     - copy all files into ./d"songs"/d"{album_name}"/f"{song_title}"
     - copy all files into arg string
     - cut all files into arg string
